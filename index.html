@@ -233,6 +233,92 @@ body {
   }
 }
 
+@media (max-width: 1024px) {
+  .bouquet {
+    --bouquet-scale: 0.98;
+  }
+}
+
+@media (max-width: 768px) {
+  .bouquet-stage {
+    height: min(88vh, 680px);
+  }
+
+  .bouquet {
+    --bouquet-scale: 0.82;
+  }
+
+  .message {
+    font-size: 18px;
+    bottom: -56px;
+  }
+
+  .final-surprise {
+    top: auto;
+    bottom: 14px;
+    transform: translate(-50%, 16px);
+  }
+
+  .final-surprise.show {
+    transform: translate(-50%, 0);
+  }
+
+  .polaroid {
+    width: 102px;
+    padding: 7px 7px 16px;
+  }
+
+  .memory-photo {
+    height: 84px;
+  }
+}
+
+@media (max-width: 480px) {
+  .bouquet-stage {
+    height: min(84vh, 620px);
+  }
+
+  .bouquet {
+    --bouquet-scale: 0.68;
+  }
+
+  .message {
+    font-size: 15px;
+    bottom: -42px;
+  }
+
+  .surprise-card {
+    padding: 18px;
+  }
+
+  .surprise-title {
+    font-size: 22px;
+  }
+
+  .surprise-text {
+    font-size: 14px;
+  }
+
+  .surprise-actions {
+    height: 44px;
+  }
+
+  .surprise-btn {
+    min-width: 102px;
+    height: 38px;
+    font-size: 14px;
+  }
+
+  .polaroid {
+    width: 86px;
+    padding: 6px 6px 14px;
+  }
+
+  .memory-photo {
+    height: 70px;
+  }
+}
+
 .letter-card {
   width: min(86vw, 360px);
   padding: 30px 26px 24px;
@@ -312,6 +398,19 @@ body {
   transform: scale(var(--bouquet-scale));
   transform-origin: bottom center;
   filter: drop-shadow(0 18px 26px rgba(42, 20, 36, 0.26));
+  z-index: 2;
+}
+
+.bouquet-stage {
+  width: 100%;
+  max-width: 100vw;
+  height: min(92vh, 760px);
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  overflow: visible;
+  position: relative;
   z-index: 2;
 }
 
@@ -789,12 +888,6 @@ body {
   clip-path: polygon(0 0, 100% 0, 82% 92%, 16% 100%);
 }
 
-@media (max-width: 800px) {
-  .bouquet {
-    --bouquet-scale: 0.9;
-  }
-}
-
 .message {
   position: absolute;
   bottom: -70px;
@@ -858,6 +951,7 @@ body {
   </div>
 </div>
 
+<div class="bouquet-stage">
 <div class="bouquet">
   <div class="stem stem-back-left" id="stemBackLeft">
     <div class="leaf leaf-back-left-1"></div>
@@ -960,6 +1054,7 @@ body {
   <div class="message" id="msg">
     &#127801; Happy Valentine's Day My Babyyy &#128536;&#128536; &#10084;&#65039; &#127801;
   </div>
+</div>
 </div>
 
 <div class="final-surprise" id="finalSurprise">
