@@ -78,8 +78,8 @@ body {
 .memory-wall {
   position: fixed;
   inset: 0;
-  pointer-events: none;
-  z-index: 1;
+  pointer-events: auto;
+  z-index: 4;
 }
 
 .polaroid {
@@ -92,6 +92,9 @@ body {
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.32);
   transform: translateY(28px) rotate(var(--tilt, -4deg)) scale(0.94);
   opacity: 0;
+  cursor: zoom-in;
+  transition: transform 0.28s ease, box-shadow 0.28s ease;
+  pointer-events: auto;
 }
 
 .memory-photo {
@@ -123,6 +126,38 @@ body {
 .show-memories .polaroid {
   animation: memoryIn 0.9s ease forwards;
   animation-delay: var(--delay, 0s);
+}
+
+.show-memories .polaroid:hover {
+  transform: translateY(-4px) rotate(var(--tilt, 0deg)) scale(1.04);
+  box-shadow: 0 22px 38px rgba(0, 0, 0, 0.38);
+}
+
+.show-memories .polaroid:focus-visible {
+  outline: 3px solid rgba(255, 177, 213, 0.95);
+  outline-offset: 3px;
+}
+
+.show-memories .polaroid.is-centered {
+  position: fixed;
+  top: var(--zoom-top, 0px);
+  left: var(--zoom-left, 0px);
+  width: var(--zoom-width, 132px);
+  transform: rotate(0deg);
+  z-index: 40;
+  opacity: 1;
+  transition: top 0.38s ease, left 0.38s ease, width 0.38s ease, box-shadow 0.38s ease;
+  box-shadow: 0 30px 56px rgba(0, 0, 0, 0.55);
+  cursor: zoom-out;
+}
+
+.show-memories .polaroid.is-centered:hover {
+  transform: rotate(0deg);
+}
+
+.show-memories .polaroid.is-centered .memory-photo {
+  height: var(--zoom-photo-height, 116px);
+  transition: height 0.38s ease;
 }
 
 @keyframes memoryIn {
@@ -274,6 +309,14 @@ body {
   .memory-photo {
     height: 84px;
   }
+
+  .show-memories .polaroid.is-centered {
+    width: var(--zoom-width, 102px);
+  }
+
+  .show-memories .polaroid.is-centered .memory-photo {
+    height: var(--zoom-photo-height, 84px);
+  }
 }
 
 @media (max-width: 480px) {
@@ -319,6 +362,14 @@ body {
 
   .memory-photo {
     height: 70px;
+  }
+
+  .show-memories .polaroid.is-centered {
+    width: var(--zoom-width, 86px);
+  }
+
+  .show-memories .polaroid.is-centered .memory-photo {
+    height: var(--zoom-photo-height, 70px);
   }
 }
 
@@ -931,6 +982,22 @@ body {
 @keyframes fadeIn {
   to { opacity: 1; }
 }
+
+.zoom-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 4, 12, 0.6);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 35;
+}
+
+.zoom-backdrop.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 </style>
 </head>
 <body>
@@ -949,6 +1016,7 @@ body {
 </audio>
 
 <div class="love-rain" id="loveRain"></div>
+<div class="zoom-backdrop" id="zoomBackdrop" aria-hidden="true"></div>
 <div class="memory-wall" id="memoryWall">
   <div class="polaroid memory-1">
     <div class="memory-photo photo-1">
@@ -1099,6 +1167,10 @@ body {
 let loveRainTimer;
 let hasStarted = false;
 let surpriseShown = false;
+let activePolaroid = null;
+let isZoomAnimating = false;
+let activePolaroidParent = null;
+let activePolaroidNextSibling = null;
 
 function startLoveRain() {
   if (loveRainTimer) return;
@@ -1176,6 +1248,134 @@ function updateBouquetScale() {
   bouquet.style.setProperty("--bouquet-scale", nextScale.toFixed(3));
 }
 
+function setupMemoryZoom() {
+  const zoomBackdrop = document.getElementById("zoomBackdrop");
+  const polaroids = document.querySelectorAll(".polaroid");
+  if (!polaroids.length || !zoomBackdrop) return;
+
+  const clearZoomStyles = (polaroid) => {
+    ["--zoom-top", "--zoom-left", "--zoom-width", "--zoom-photo-height"].forEach((key) => {
+      polaroid.style.removeProperty(key);
+    });
+  };
+
+  const openCentered = (polaroid) => {
+    const rect = polaroid.getBoundingClientRect();
+    const photo = polaroid.querySelector(".memory-photo");
+    const photoRect = photo ? photo.getBoundingClientRect() : null;
+    const photoRatio = photoRect ? (photoRect.height / rect.width) : 0.88;
+    const targetWidth = Math.min(window.innerWidth * 0.72, 420);
+    const targetPhotoHeight = Math.min(window.innerHeight * 0.62, targetWidth * photoRatio);
+    const targetHeight = targetPhotoHeight + 34 + targetWidth * 0.14;
+    const targetLeft = (window.innerWidth - targetWidth) / 2;
+    const targetTop = Math.max(12, (window.innerHeight - targetHeight) / 2);
+
+    polaroid.style.setProperty("--zoom-top", `${rect.top}px`);
+    polaroid.style.setProperty("--zoom-left", `${rect.left}px`);
+    polaroid.style.setProperty("--zoom-width", `${rect.width}px`);
+    polaroid.style.setProperty("--zoom-photo-height", `${photoRect ? photoRect.height : 116}px`);
+    polaroid.classList.add("is-centered");
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        polaroid.style.setProperty("--zoom-top", `${targetTop}px`);
+        polaroid.style.setProperty("--zoom-left", `${targetLeft}px`);
+        polaroid.style.setProperty("--zoom-width", `${targetWidth}px`);
+        polaroid.style.setProperty("--zoom-photo-height", `${targetPhotoHeight}px`);
+      });
+    });
+  };
+
+  const closeZoom = (onDone) => {
+    if (!activePolaroid) return;
+    if (isZoomAnimating) return;
+    isZoomAnimating = true;
+    const polaroid = activePolaroid;
+    zoomBackdrop.classList.remove("show");
+    zoomBackdrop.setAttribute("aria-hidden", "true");
+
+    if (polaroid.dataset.originTop) {
+      polaroid.style.setProperty("--zoom-top", polaroid.dataset.originTop);
+      polaroid.style.setProperty("--zoom-left", polaroid.dataset.originLeft);
+      polaroid.style.setProperty("--zoom-width", polaroid.dataset.originWidth);
+      polaroid.style.setProperty("--zoom-photo-height", polaroid.dataset.originPhotoHeight);
+    }
+
+    const onTransitionEnd = (event) => {
+      if (event.propertyName !== "top") return;
+      polaroid.removeEventListener("transitionend", onTransitionEnd);
+      polaroid.classList.remove("is-centered");
+      clearZoomStyles(polaroid);
+      if (activePolaroidParent) {
+        if (activePolaroidNextSibling && activePolaroidNextSibling.parentElement === activePolaroidParent) {
+          activePolaroidParent.insertBefore(polaroid, activePolaroidNextSibling);
+        } else {
+          activePolaroidParent.appendChild(polaroid);
+        }
+      }
+      activePolaroidParent = null;
+      activePolaroidNextSibling = null;
+      activePolaroid = null;
+      isZoomAnimating = false;
+      if (onDone) onDone();
+    };
+    polaroid.addEventListener("transitionend", onTransitionEnd);
+  };
+
+  polaroids.forEach((polaroid) => {
+    polaroid.setAttribute("role", "button");
+    polaroid.setAttribute("tabindex", "0");
+    polaroid.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (isZoomAnimating) return;
+      if (activePolaroid === polaroid) {
+        closeZoom();
+        return;
+      }
+      if (activePolaroid) {
+        closeZoom(() => polaroid.click());
+        return;
+      }
+      const rect = polaroid.getBoundingClientRect();
+      const photo = polaroid.querySelector(".memory-photo");
+      const photoRect = photo ? photo.getBoundingClientRect() : null;
+      activePolaroidParent = polaroid.parentElement;
+      activePolaroidNextSibling = polaroid.nextElementSibling;
+      document.body.appendChild(polaroid);
+      polaroid.dataset.originTop = `${rect.top}px`;
+      polaroid.dataset.originLeft = `${rect.left}px`;
+      polaroid.dataset.originWidth = `${rect.width}px`;
+      polaroid.dataset.originPhotoHeight = `${photoRect ? photoRect.height : 116}px`;
+      activePolaroid = polaroid;
+      openCentered(polaroid);
+      zoomBackdrop.classList.add("show");
+      zoomBackdrop.setAttribute("aria-hidden", "false");
+    });
+    polaroid.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        if (isZoomAnimating) return;
+        if (activePolaroid === polaroid) {
+          closeZoom();
+          return;
+        }
+        polaroid.click();
+      }
+    });
+  });
+
+  zoomBackdrop.addEventListener("click", closeZoom);
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeZoom();
+  });
+
+  window.addEventListener("resize", () => {
+    if (!activePolaroid || isZoomAnimating) return;
+    openCentered(activePolaroid);
+  });
+}
+
 function startLove() {
   if (hasStarted) return;
   hasStarted = true;
@@ -1228,7 +1428,10 @@ function startLove() {
 
 window.addEventListener("resize", updateBouquetScale);
 window.addEventListener("orientationchange", updateBouquetScale);
-document.addEventListener("DOMContentLoaded", updateBouquetScale);
+document.addEventListener("DOMContentLoaded", () => {
+  updateBouquetScale();
+  setupMemoryZoom();
+});
 </script>
 
 </body>
